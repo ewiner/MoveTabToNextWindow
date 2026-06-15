@@ -4,7 +4,7 @@
   "version": "1.2.0",
   "description": "One-click to move a tab to the next window",
   "homepage_url": "https://github.com/rshev/MoveTabToNextWindow",
-  "permissions": ["tabGroups", "storage"],
+  "permissions": ["tabGroups", "storage", "contextMenus", "tabs"],
   "background": {
     "service_worker": "index.js"
   },
