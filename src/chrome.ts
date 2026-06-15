@@ -1,4 +1,4 @@
-import { TabMover, Tab, Data, NEW_WINDOW } from "./tabMover";
+import { TabMover, Tab, Data } from "./tabMover";
 
 // chrome-specific hooks
 const loadData = (): Promise<Data> => {
@@ -46,17 +46,19 @@ const tabMoveWrapper = async (tab: Tab, moveOperation: () => Promise<number>) =>
 // register
 const tabMover = new TabMover(loadData, saveData, tabMoveWrapper);
 
-// "Move tab to window" context menu with a submenu of the other open windows
-// (labelled after their active tab) plus a "New window" entry. It acts on the
-// active tab of the window where the menu was invoked.
-const PARENT_MENU_ID = "move-tab-to-window";
-const NEW_WINDOW_MENU_ID = "move-tab-to-new-window";
-const SEPARATOR_MENU_ID = "move-tab-to-window-separator";
-const WINDOW_MENU_ID_PREFIX = "move-tab-to-window:";
+// Context menu: "Move to the next window" plus a flat, directly-clickable list
+// of the other open windows (labelled after their first tab) under a heading.
+// It acts on the active tab of the window where the menu was invoked.
+const NEXT_WINDOW_MENU_ID = "move-to-next-window";
+const SEPARATOR_MENU_ID = "move-to-window-separator";
+const HEADING_MENU_ID = "move-to-window-heading";
+const WINDOW_MENU_ID_PREFIX = "move-to-window:";
 
 // Chrome (unlike Firefox) does NOT allow extensions to add items to the tab
 // strip's right-click menu - there is no "tab" context. The closest available
 // surfaces are the page right-click menu and the extension's toolbar icon.
+// (Chrome collapses multiple top-level items into one submenu named after the
+// extension, so the window list lives one level under the extension's name.)
 const MENU_CONTEXTS: chrome.contextMenus.ContextType[] = ["page", "action"];
 
 // Chrome has no "on menu shown" event, so the menu is rebuilt whenever windows
@@ -82,27 +84,25 @@ const rebuildMenu = async () => {
   const options = await tabMover.getWindowMenuOptions(focusedWindow?.id);
 
   chrome.contextMenus.create({
-    id: PARENT_MENU_ID,
-    title: "Move tab to window",
-    contexts: MENU_CONTEXTS,
-  });
-  chrome.contextMenus.create({
-    id: NEW_WINDOW_MENU_ID,
-    parentId: PARENT_MENU_ID,
-    title: "New window",
+    id: NEXT_WINDOW_MENU_ID,
+    title: "Move to the next window",
     contexts: MENU_CONTEXTS,
   });
   if (options.length > 0) {
     chrome.contextMenus.create({
       id: SEPARATOR_MENU_ID,
-      parentId: PARENT_MENU_ID,
       type: "separator",
+      contexts: MENU_CONTEXTS,
+    });
+    chrome.contextMenus.create({
+      id: HEADING_MENU_ID,
+      title: "Move to window:",
+      enabled: false,
       contexts: MENU_CONTEXTS,
     });
     for (const option of options) {
       chrome.contextMenus.create({
         id: `${WINDOW_MENU_ID_PREFIX}${option.id}`,
-        parentId: PARENT_MENU_ID,
         title: option.label,
         contexts: MENU_CONTEXTS,
       });
@@ -114,8 +114,8 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
   if (tab == null) {
     return;
   }
-  if (info.menuItemId === NEW_WINDOW_MENU_ID) {
-    void tabMover.moveTabOrHighlightedTabs(tab, NEW_WINDOW);
+  if (info.menuItemId === NEXT_WINDOW_MENU_ID) {
+    void tabMover.moveTabOrHighlightedTabs(tab);
   } else if (
     typeof info.menuItemId === "string" &&
     info.menuItemId.startsWith(WINDOW_MENU_ID_PREFIX)

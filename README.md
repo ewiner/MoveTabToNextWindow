@@ -12,7 +12,7 @@ Especially useful for these amazing multi-monitor setups when it's too annoying 
 
 ## Quick feature list
 
-- a **Move tab to window** submenu sends the current tab (and any other selected tabs) to a *specific* open window, or to a brand new one. On Firefox it lives in the tab's right-click menu; on Chrome - which doesn't let extensions add items to the tab strip menu - it's on the page right-click menu and the extension's toolbar-icon right-click menu. Windows are listed by their active tab's title (the same way the browser's own "Move tab to another window" menu derives names), since browsers don't expose user-assigned window names to extensions.
+- the other open windows are listed directly in the extension's context menu (under a **Move to window:** heading) so the current tab - and any other selected tabs - can be sent to a *specific* window in one click. On Firefox the menu lives in the tab's right-click menu; on Chrome - which doesn't let extensions add items to the tab strip menu - it's on the page right-click menu and the extension's toolbar-icon right-click menu. Each window is labelled by its first tab's title (browsers don't expose user-assigned window names to extensions).
 - the source tab position is saved in all windows, so if it's moved back into a window, it moves into its original position
 - CHROMIUM: if the tab is in a tab group, when moving it the identical group will be created or used in another window
 - multiple tabs move - select multiple tabs (use shift or cmd/ctrl) and move all of them into the next window in the same order

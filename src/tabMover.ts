@@ -14,16 +14,10 @@ export interface Data {
   [key: string]: Tab;
 }
 
-/**
- * Sentinel passed as a target to force the tab(s) into a brand new window,
- * regardless of how many windows are currently open.
- */
-export const NEW_WINDOW = -1;
-
 export interface WindowMenuOption {
   /** The id of the window the tab(s) should be moved into. */
   id: number;
-  /** A human-friendly label derived from the window's active tab. */
+  /** A human-friendly label derived from the window's first tab. */
   label: string;
 }
 
@@ -49,8 +43,7 @@ export class TabMover {
    * Build the list of windows to offer in a "move to window" menu.
    *
    * Chrome/Firefox don't expose a user-assigned window name to extensions, so
-   * each window is labelled after its active tab (mirroring the browser's own
-   * native "Move tab to another window" menu), suffixed with the tab count.
+   * each window is labelled after its first tab, suffixed with the tab count.
    *
    * @param excludeWindowId optionally omit a window (typically the focused one
    *   the tab being acted on already lives in).
@@ -70,10 +63,9 @@ export class TabMover {
     return options;
   }
 
-  private windowLabel(tabs?: { active?: boolean; title?: string }[]): string {
+  private windowLabel(tabs?: { title?: string }[]): string {
     const windowTabs = tabs ?? [];
-    const activeTab = windowTabs.find((windowTab) => windowTab.active) ?? windowTabs[0];
-    const rawTitle = activeTab?.title?.trim();
+    const rawTitle = windowTabs[0]?.title?.trim();
     const title = rawTitle != null && rawTitle.length > 0 ? rawTitle : "Window";
     const truncated = title.length > 50 ? `${title.slice(0, 49)}…` : title;
     const suffix = windowTabs.length > 1 ? ` (${windowTabs.length} tabs)` : "";
@@ -87,8 +79,8 @@ export class TabMover {
     });
     const tabsToMove = highlightedTabs.length > 1 ? highlightedTabs : [tab];
     // Resolve the target once so that multiple selected tabs all land in the
-    // same window - especially important when "New window" is chosen, where the
-    // first move creates the window and the rest move into the created window.
+    // same window - important when there's only a single window and the first
+    // move creates a new one, so the rest move into the created window too.
     let resolvedTargetWindowId = targetWindowId;
     for (const tabToMove of tabsToMove) {
       resolvedTargetWindowId = await this.moveTab(tabToMove, resolvedTargetWindowId);
@@ -109,9 +101,8 @@ export class TabMover {
    * Move a single tab.
    *
    * @param requestedTargetWindowId when omitted, the tab is moved to the next
-   *   window (the original behaviour). When set to {@link NEW_WINDOW}, it is
-   *   moved into a brand new window. Otherwise it is moved into the window with
-   *   the given id.
+   *   window (the original behaviour). Otherwise it is moved into the window
+   *   with the given id.
    * @returns the id of the window the tab ended up in, or `undefined` if the
    *   move was skipped.
    */
@@ -135,10 +126,7 @@ export class TabMover {
     );
 
     let targetWindowId: number | undefined;
-    const forceNewWindow = requestedTargetWindowId === NEW_WINDOW;
-    if (forceNewWindow) {
-      targetWindowId = undefined;
-    } else if (requestedTargetWindowId != null) {
+    if (requestedTargetWindowId != null) {
       targetWindowId = requestedTargetWindowId;
     } else {
       const currentTabWindowIndex = allWindows.findIndex((window) => window.id === tab.windowId);
@@ -146,11 +134,11 @@ export class TabMover {
     }
 
     // Nothing to do if the tab is already in the requested window.
-    if (!forceNewWindow && targetWindowId === tab.windowId) {
+    if (targetWindowId === tab.windowId) {
       return targetWindowId;
     }
 
-    if (forceNewWindow || allWindows.length <= 1 || targetWindowId == null) {
+    if (allWindows.length <= 1 || targetWindowId == null) {
       let newWindowId: number | undefined;
       await this.tabMoveWrapper(tab, async () => {
         const targetWindow = await browser.windows.create({ tabId: tab.id });
