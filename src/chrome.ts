@@ -46,16 +46,18 @@ const tabMoveWrapper = async (tab: Tab, moveOperation: () => Promise<number>) =>
 // register
 const tabMover = new TabMover(loadData, saveData, tabMoveWrapper);
 
-// Tab context menu: "Move tab to window" with a submenu of the other open
-// windows (labelled after their active tab) plus a "New window" entry.
+// "Move tab to window" context menu with a submenu of the other open windows
+// (labelled after their active tab) plus a "New window" entry. It acts on the
+// active tab of the window where the menu was invoked.
 const PARENT_MENU_ID = "move-tab-to-window";
 const NEW_WINDOW_MENU_ID = "move-tab-to-new-window";
 const SEPARATOR_MENU_ID = "move-tab-to-window-separator";
 const WINDOW_MENU_ID_PREFIX = "move-tab-to-window:";
 
-// "tab" is a valid context in Chrome but is (incorrectly) missing from the
-// @types/chrome ContextType union, so it needs a cast.
-const TAB_CONTEXTS = ["tab"] as unknown as chrome.contextMenus.ContextType[];
+// Chrome (unlike Firefox) does NOT allow extensions to add items to the tab
+// strip's right-click menu - there is no "tab" context. The closest available
+// surfaces are the page right-click menu and the extension's toolbar icon.
+const MENU_CONTEXTS: chrome.contextMenus.ContextType[] = ["page", "action"];
 
 // Chrome has no "on menu shown" event, so the menu is rebuilt whenever windows
 // or tab titles change. Rebuilds are debounced to coalesce bursts of events.
@@ -74,35 +76,35 @@ const scheduleMenuRebuild = () => {
 const rebuildMenu = async () => {
   await chrome.contextMenus.removeAll();
 
-  // Exclude the focused window - the tab being right-clicked almost always
-  // lives there, and "move to the window I'm already in" is a no-op.
+  // Exclude the focused window - the menu acts on its active tab, and "move to
+  // the window I'm already in" is a no-op.
   const focusedWindow = await chrome.windows.getLastFocused().catch(() => undefined);
   const options = await tabMover.getWindowMenuOptions(focusedWindow?.id);
 
   chrome.contextMenus.create({
     id: PARENT_MENU_ID,
     title: "Move tab to window",
-    contexts: TAB_CONTEXTS,
+    contexts: MENU_CONTEXTS,
   });
   chrome.contextMenus.create({
     id: NEW_WINDOW_MENU_ID,
     parentId: PARENT_MENU_ID,
     title: "New window",
-    contexts: TAB_CONTEXTS,
+    contexts: MENU_CONTEXTS,
   });
   if (options.length > 0) {
     chrome.contextMenus.create({
       id: SEPARATOR_MENU_ID,
       parentId: PARENT_MENU_ID,
       type: "separator",
-      contexts: TAB_CONTEXTS,
+      contexts: MENU_CONTEXTS,
     });
     for (const option of options) {
       chrome.contextMenus.create({
         id: `${WINDOW_MENU_ID_PREFIX}${option.id}`,
         parentId: PARENT_MENU_ID,
         title: option.label,
-        contexts: TAB_CONTEXTS,
+        contexts: MENU_CONTEXTS,
       });
     }
   }
