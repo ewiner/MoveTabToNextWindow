@@ -46,19 +46,16 @@ const tabMoveWrapper = async (tab: Tab, moveOperation: () => Promise<number>) =>
 // register
 const tabMover = new TabMover(loadData, saveData, tabMoveWrapper);
 
-// Context menu: "Move to the next window" plus a flat, directly-clickable list
-// of the other open windows (labelled after their first tab) under a heading.
-// It acts on the active tab of the window where the menu was invoked.
-const NEXT_WINDOW_MENU_ID = "move-to-next-window";
-const SEPARATOR_MENU_ID = "move-to-window-separator";
+// Context menu: a flat, directly-clickable, numbered list of the other open
+// windows (labelled after their first tab) under a heading. It acts on the
+// active tab of the window where the menu was invoked. Moving to the *next*
+// window remains the left-click / keyboard-shortcut action.
 const HEADING_MENU_ID = "move-to-window-heading";
 const WINDOW_MENU_ID_PREFIX = "move-to-window:";
 
 // Chrome (unlike Firefox) does NOT allow extensions to add items to the tab
 // strip's right-click menu - there is no "tab" context. The closest available
 // surfaces are the page right-click menu and the extension's toolbar icon.
-// (Chrome collapses multiple top-level items into one submenu named after the
-// extension, so the window list lives one level under the extension's name.)
 const MENU_CONTEXTS: chrome.contextMenus.ContextType[] = ["page", "action"];
 
 // Chrome has no "on menu shown" event, so the menu is rebuilt whenever windows
@@ -83,30 +80,20 @@ const rebuildMenu = async () => {
   const focusedWindow = await chrome.windows.getLastFocused().catch(() => undefined);
   const options = await tabMover.getWindowMenuOptions(focusedWindow?.id);
 
-  chrome.contextMenus.create({
-    id: NEXT_WINDOW_MENU_ID,
-    title: "Move to the next window",
-    contexts: MENU_CONTEXTS,
-  });
   if (options.length > 0) {
-    chrome.contextMenus.create({
-      id: SEPARATOR_MENU_ID,
-      type: "separator",
-      contexts: MENU_CONTEXTS,
-    });
     chrome.contextMenus.create({
       id: HEADING_MENU_ID,
       title: "Move to window:",
       enabled: false,
       contexts: MENU_CONTEXTS,
     });
-    for (const option of options) {
+    options.forEach((option, index) => {
       chrome.contextMenus.create({
         id: `${WINDOW_MENU_ID_PREFIX}${option.id}`,
-        title: option.label,
+        title: `${index + 1}. ${option.label}`,
         contexts: MENU_CONTEXTS,
       });
-    }
+    });
   }
 };
 
@@ -114,12 +101,7 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
   if (tab == null) {
     return;
   }
-  if (info.menuItemId === NEXT_WINDOW_MENU_ID) {
-    void tabMover.moveTabOrHighlightedTabs(tab);
-  } else if (
-    typeof info.menuItemId === "string" &&
-    info.menuItemId.startsWith(WINDOW_MENU_ID_PREFIX)
-  ) {
+  if (typeof info.menuItemId === "string" && info.menuItemId.startsWith(WINDOW_MENU_ID_PREFIX)) {
     const targetWindowId = parseInt(info.menuItemId.slice(WINDOW_MENU_ID_PREFIX.length), 10);
     if (!Number.isNaN(targetWindowId)) {
       void tabMover.moveTabOrHighlightedTabs(tab, targetWindowId);

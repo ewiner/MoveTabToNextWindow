@@ -2,45 +2,32 @@ import { TabMover } from "./tabMover";
 
 const tabMover = new TabMover();
 
-const NEXT_WINDOW_MENU_ID = "move-to-next-window";
-const SEPARATOR_MENU_ID = "move-to-window-separator";
 const HEADING_MENU_ID = "move-to-window-heading";
 const WINDOW_MENU_ID_PREFIX = "move-to-window:";
 
-// (Re)build the tab context menu: "Move to the next window" plus a flat,
-// directly-clickable list of the other open windows (labelled after their first
-// tab) under a heading. Rebuilt just before the menu is shown so it always
-// reflects the currently open windows. `excludeWindowId` omits the window the
-// right-clicked tab already lives in.
+// (Re)build the tab context menu: a flat, directly-clickable, numbered list of
+// the other open windows (labelled after their first tab) under a heading.
+// Rebuilt just before the menu is shown so it always reflects the currently
+// open windows. `excludeWindowId` omits the window the right-clicked tab already
+// lives in. Moving to the *next* window remains the toolbar / shortcut action.
 const buildMenu = async (excludeWindowId?: number) => {
   await browser.menus.removeAll();
 
-  browser.menus.create({
-    id: NEXT_WINDOW_MENU_ID,
-    contexts: ["tab"],
-    title: "Move to the next window",
-  });
-
   const options = await tabMover.getWindowMenuOptions(excludeWindowId);
   if (options.length > 0) {
-    browser.menus.create({
-      id: SEPARATOR_MENU_ID,
-      contexts: ["tab"],
-      type: "separator",
-    });
     browser.menus.create({
       id: HEADING_MENU_ID,
       contexts: ["tab"],
       title: "Move to window:",
       enabled: false,
     });
-    for (const option of options) {
+    options.forEach((option, index) => {
       browser.menus.create({
         id: `${WINDOW_MENU_ID_PREFIX}${option.id}`,
         contexts: ["tab"],
-        title: option.label,
+        title: `${index + 1}. ${option.label}`,
       });
-    }
+    });
   }
 };
 
@@ -58,12 +45,7 @@ browser.menus.onClicked.addListener((info, tab) => {
   if (tab == null) {
     return;
   }
-  if (info.menuItemId === NEXT_WINDOW_MENU_ID) {
-    void tabMover.moveTabOrHighlightedTabs(tab);
-  } else if (
-    typeof info.menuItemId === "string" &&
-    info.menuItemId.startsWith(WINDOW_MENU_ID_PREFIX)
-  ) {
+  if (typeof info.menuItemId === "string" && info.menuItemId.startsWith(WINDOW_MENU_ID_PREFIX)) {
     const targetWindowId = parseInt(info.menuItemId.slice(WINDOW_MENU_ID_PREFIX.length), 10);
     if (!Number.isNaN(targetWindowId)) {
       void tabMover.moveTabOrHighlightedTabs(tab, targetWindowId);
